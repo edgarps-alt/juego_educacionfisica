@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trivia de Lesiones Deportivas - ahorcado</title>
+    <style>
+        :root {
+            --primary-color: #d9534f; /* Rojo alerta/lesión */
+            --secondary-color: #2c3e50; /* Azul oscuro institucional */
+            --bg-color: #f8f9fa; /* Gris claro de fondo */
+            --text-color: #333;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 4px solid var(--primary-color);
+            padding-bottom: 10px;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        h1 {
+            color: var(--secondary-color);
+            margin: 0;
+            font-size: 2.5rem;
+            text-transform: uppercase;
+        }
+
+        p.subtitle {
+            margin: 5px 0 0 0;
+            color: #7f8c8d;
+            font-weight: bold;
+        }
+
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 700px;
+            box-sizing: border-box;
+        }
+
+        .stats-panel {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            margin-bottom: 20px;
+            background: #edf2f7;
+            padding: 10px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+
+        .stat-box {
+            color: var(--secondary-color);
+        }
+
+        #fail-counter {
+            color: var(--primary-color);
+        }
+
+        /* Canvas del Ahorcado */
+        canvas {
+            background: #fff;
+            border: 2px solid #bdc3c7;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        /* Palabra oculta */
+        .word-display {
+            font-size: 2rem;
+            letter-spacing: 12px;
+            margin-bottom: 25px;
+            font-weight: bold;
+            color: var(--secondary-color);
+            text-align: center;
+            min-height: 50px;
+        }
+
+        /* Teclado Virtual */
+        .keyboard {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 10px;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .key {
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            padding: 12px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .key:hover:not(:disabled) {
+            background-color: var(--primary-color);
+            transform: scale(1.05);
+        }
+
+        .key:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Pantalla Final Obigatoria */
+        .game-over-screen {
+            display: none;
+            text-align: center;
+            padding: 30px;
+            background: #fff0f0;
+            border: 3px solid var(--primary-color);
+            border-radius: 12px;
+            margin-top: 20px;
+            width: 100%;
+            max-width: 600px;
+        }
+
+        .game-over-screen h2 {
+            color: var(--primary-color);
+            font-size: 2.2rem;
+            margin-top: 0;
+        }
+
+        .final-results {
+            font-size: 1.3rem;
+            margin: 20px 0;
+            line-height: 1.6;
+        }
+
+        .alert-disabled {
+            color: #7f8c8d;
+            font-style: italic;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Evaluación: Lesiones en la Educación Física</h1>
+        <p class="subtitle">Modulo de Seguridad y Primeros Auxilios Deportivos</p>
+    </header>
+
+    <div class="game-container" id="game-box">
+        <div class="stats-panel">
+            <div class="stat-box">Puntos: <span id="score">0</span></div>
+            <div class="stat-box">Progreso: <span id="word-number">1</span>/10</div>
+            <div class="stat-box">Letras Incorrectas Totales: <span id="fail-counter">0</span></div>
+        </div>
+
+        <canvas id="hangmanCanvas" width="200" height="200"></canvas>
+
+        <div class="word-display" id="word-display">_ _ _ _ _</div>
+
+        <div class="keyboard" id="keyboard"></div>
+    </div>
+
+    <div class="game-over-screen" id="game-over-screen">
+        <h2 id="end-title">Fin de la Evaluación</h2>
+        <div class="final-results" id="final-results">
+            </div>
+        <p class="alert-disabled">⚠️ Esta evaluación ha concluido. No se permiten más intentos ni reinicios.</p>
+    </div>
+
+    <script>
+        // 1. Banco de 10 palabras sobre lesiones
+        const wordsList = [
+            "ESGUINCE",
+            "FRACTURA",
+            "DESGARRO",
+            "LUXACION",
+            "CALAMBRE",
+            "CONTUSION",
+            "TENDINITIS",
+            "CONTRACTURA",
+            "DISTENSION",
+            "FISURA"
+        ];
+
+        let currentWordIndex = 0;
+        let currentWord = "";
+        let guessedLetters = [];
+        let score = 0;
+        let totalIncorrectLetters = 0;
+        let currentWordWrongAttempts = 0;
+        const maxAttemptsPerWord = 6; // Cabeza, tronco, 2 brazos, 2 piernas
+
+        const canvas = document.getElementById('hangmanCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Inicializar Teclado
+        const alphabet = "ABCDEFGHIJKLMNÑOPQRSTUVWXYZ";
+        const keyboardDiv = document.getElementById('keyboard');
+        
+        function createKeyboard() {
+            keyboardDiv.innerHTML = "";
+            alphabet.split("").forEach(letter => {
+                const button = document.createElement('button');
+                button.textContent = letter;
+                button.classList.add('key');
+                button.id = `key-${letter}`;
+                button.addEventListener('click', () => handleGuess(letter));
+                keyboardDiv.appendChild(button);
+            });
+        }
+
+        // Iniciar Juego/Palabra
+        function initWord() {
+            if (currentWordIndex >= wordsList.length) {
+                endGame(true); // Completó las 10 palabras
+                return;
+            }
+            
+            currentWord = wordsList[currentWordIndex];
+            guessedLetters = [];
+            currentWordWrongAttempts = 0;
+            document.getElementById('word-number').textContent = currentWordIndex + 1;
+            
+            drawHangman(0);
+            updateWordDisplay();
+            enableKeyboard();
+        }
+
+        // Actualizar visualización de la palabra
+        function updateWordDisplay() {
+            let display = "";
+            for (let letter of currentWord) {
+                if (guessedLetters.includes(letter)) {
+                    display += letter + " ";
+                } else {
+                    display += "_ ";
+                }
+            }
+            document.getElementById('word-display').textContent = display.trim();
+        }
+
+        // Manejar la pulsación de una letra
+        function handleGuess(letter) {
+            const button = document.getElementById(`key-${letter}`);
+            if (button) button.disabled = true;
+
+            if (currentWord.includes(letter)) {
+                guessedLetters.push(letter);
+                updateWordDisplay();
+                
+                // Comprobar si adivinó la palabra completa
+                const isWordComplete = currentWord.split("").every(l => guessedLetters.includes(l));
+                if (isWordComplete) {
+                    score += 10;
+                    document.getElementById('score').textContent = score;
+                    currentWordIndex++;
+                    setTimeout(initWord, 1000); // Pequeña pausa antes de la siguiente palabra
+                }
+            } else {
+                // Letra incorrecta
+                totalIncorrectLetters++;
+                currentWordWrongAttempts++;
+                document.getElementById('fail-counter').textContent = totalIncorrectLetters;
+                drawHangman(currentWordWrongAttempts);
+
+                if (currentWordWrongAttempts >= maxAttemptsPerWord) {
+                    // El ahorcado se completó, fin del juego definitivo
+                    setTimeout(() => endGame(false), 500);
+                }
+            }
+        }
+
+        function enableKeyboard() {
+            const buttons = document.querySelectorAll('.key');
+            buttons.forEach(b => b.disabled = false);
+        }
+
+        function disableAll() {
+            // Eliminar interfaz de juego activa para que no se pueda seguir jugando
+            document.getElementById('game-box').style.display = 'none';
+        }
+
+        // Finalizar el juego (Criterios 5, 6 y 7)
+        function endGame(completedAll) {
+            disableAll();
+            
+            const screen = document.getElementById('game-over-screen');
+            const title = document.getElementById('end-title');
+            const results = document.getElementById('final-results');
+            
+            screen.style.display = 'block';
+            
+            if (completedAll) {
+                title.textContent = "🏆 ¡Evaluación Finalizada!";
+                title.style.color = "#27ae60";
+            } else {
+                title.textContent = "❌ Juego Terminado (Ahorcado Completo)";
+                title.style.color = "var(--primary-color)";
+            }
+
+            results.innerHTML = `
+                <p><strong>Puntaje Final:</strong> ${score} puntos</p>
+                <p><strong>Letras Incorrectas Totales:</strong> ${totalIncorrectLetters}</p>
+                <p><em>Criterio de desempate registrado en el sistema.</em></p>
+            `;
+        }
+
+        // Dibujo del Ahorcado en Canvas paso a paso
+        function drawHangman(step) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = varColor('--secondary-color');
+
+            // Estructura fija (la horca siempre se ve)
+            ctx.beginPath();
+            ctx.moveTo(20, 180); ctx.lineTo(180, 180); // Base
+            ctx.moveTo(60, 180); ctx.lineTo(60, 20);   // Poste vertical
+            ctx.lineTo(130, 20);                        // Poste horizontal
+            ctx.lineTo(130, 40);                        // Cuerda
+            ctx.stroke();
+
+            ctx.strokeStyle = varColor('--primary-color'); // El cuerpo se dibuja en rojo lesión
+
+            if (step >= 1) { // Cabeza
+                ctx.beginPath();
+                ctx.arc(130, 55, 15, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            if (step >= 2) { // Cuerpo
+                ctx.beginPath();
+                ctx.moveTo(130, 70); ctx.lineTo(130, 120);
+                ctx.stroke();
+            }
+            if (step >= 3) { // Brazo izquierdo
+                ctx.beginPath();
+                ctx.moveTo(130, 85); ctx.lineTo(105, 100);
+                ctx.stroke();
+            }
+            if (step >= 4) { // Brazo derecho
+                ctx.beginPath();
+                ctx.moveTo(130, 85); ctx.lineTo(155, 100);
+                ctx.stroke();
+            }
+            if (step >= 5) { // Pierna izquierda
+                ctx.beginPath();
+                ctx.moveTo(130, 120); ctx.lineTo(110, 150);
+                ctx.stroke();
+            }
+            if (step >= 6) { // Pierna derecha
+                ctx.beginPath();
+                ctx.moveTo(130, 120); ctx.lineTo(150, 150);
+                ctx.stroke();
+            }
+        }
+
+        // Función auxiliar para leer variables CSS en Canvas
+        function varColor(name) {
+            return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        }
+
+        // Arrancar el juego por primera vez
+        createKeyboard();
+        initWord();
+    </script>
+</body>
+</html>
